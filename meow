@@ -1,0 +1,1202 @@
+-- // Meow Hub v2.4
+-- // Language Loader → Main Hub
+
+local Players        = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local TweenService   = game:GetService("TweenService")
+local RunService     = game:GetService("RunService")
+local CoreGui        = game:GetService("CoreGui")
+local Lighting       = game:GetService("Lighting")
+
+local lp       = Players.LocalPlayer
+local userId   = lp.UserId
+local username = lp.Name
+
+-- ============================================================
+-- CONSTANTS
+-- ============================================================
+local MEOW_IMAGE_ID  = "rbxassetid://110721752576238"
+local MEOW_TAG_NAME  = "MeowTag"
+-- Attribute stamped onto OUR character so other MeowHub clients
+-- can identify us.  Anyone scanning this attribute knows the
+-- player is running MeowHub.
+local MEOW_ATTR_KEY  = "MeowHubUser"
+local MEOW_ATTR_VAL  = "v2.4"
+
+-- ============================================================
+-- EXECUTOR DETECTION
+-- Checks globals that each popular executor injects.
+-- Falls back to "Unknown Executor" if none match.
+-- ============================================================
+local function detectExecutor()
+    -- Synapse X / Synapse V3
+    if syn or (typeof(syn) == "table") then return "Synapse X" end
+    -- KRNL
+    if KRNL_LOADED or krnl then return "KRNL" end
+    -- Fluxus
+    if fluxus or fluxus_loaded then return "Fluxus" end
+    -- Script-Ware
+    if ScriptWare or scriptware then return "Script-Ware" end
+    -- Oxygen U
+    if oxygen or oxygenU or OXYGEN then return "Oxygen U" end
+    -- Arceus X / Mobile
+    if ARCEUS_X or arceus then return "Arceus X" end
+    -- Delta (mobile)
+    if Delta or delta_execute then return "Delta" end
+    -- Codex
+    if CODEX or codex then return "Codex" end
+    -- Wave
+    if Wave or wave_loaded then return "Wave" end
+    -- JJSploit
+    if JJSploit or jjsploit then return "JJSploit" end
+    -- Executor global present but unrecognised
+    if getexecutorname and pcall(getexecutorname) then
+        local ok, name = pcall(getexecutorname)
+        if ok and name then return tostring(name) end
+    end
+    -- identifyexecutor (Synapse V3 / newer)
+    if identifyexecutor then
+        local ok, name = pcall(identifyexecutor)
+        if ok and name then return tostring(name) end
+    end
+    return "Unknown Executor"
+end
+
+local executorName = detectExecutor()
+
+-- ============================================================
+-- LANGUAGE DATA  (original 11 + 8 new)
+-- ============================================================
+local LANGUAGES = {
+    { code = "en", name = "English",    flag = "🇺🇸", native = "English"    },
+    { code = "es", name = "Spanish",    flag = "🇪🇸", native = "Español"    },
+    { code = "fr", name = "French",     flag = "🇫🇷", native = "Français"   },
+    { code = "de", name = "German",     flag = "🇩🇪", native = "Deutsch"    },
+    { code = "ja", name = "Japanese",   flag = "🇯🇵", native = "日本語"       },
+    { code = "zh", name = "Chinese",    flag = "🇨🇳", native = "中文"        },
+    { code = "ko", name = "Korean",     flag = "🇰🇷", native = "한국어"       },
+    { code = "pt", name = "Portuguese", flag = "🇧🇷", native = "Português"  },
+    { code = "hi", name = "Hindi",      flag = "🇮🇳", native = "हिन्दी"       },
+    { code = "vi", name = "Vietnamese", flag = "🇻🇳", native = "Tiếng Việt" },
+    { code = "ru", name = "Russian",    flag = "🇷🇺", native = "Русский"    },
+    -- NEW ↓
+    { code = "ar", name = "Arabic",     flag = "🇸🇦", native = "العربية"    },
+    { code = "tr", name = "Turkish",    flag = "🇹🇷", native = "Türkçe"     },
+    { code = "nl", name = "Dutch",      flag = "🇳🇱", native = "Nederlands" },
+    { code = "pl", name = "Polish",     flag = "🇵🇱", native = "Polski"     },
+    { code = "th", name = "Thai",       flag = "🇹🇭", native = "ภาษาไทย"     },
+    { code = "id", name = "Indonesian", flag = "🇮🇩", native = "Indonesia"  },
+    { code = "uk", name = "Ukrainian",  flag = "🇺🇦", native = "Українська" },
+    { code = "it", name = "Italian",    flag = "🇮🇹", native = "Italiano"   },
+}
+
+-- ============================================================
+-- TRANSLATIONS
+-- Only the keys used by the trimmed hub are required.
+-- ============================================================
+local STRINGS = {
+    en = {
+        select_lang    = "Please select ur language",
+        confirm        = "Confirm",
+        tabs           = "TABS",
+        executor_label = "executor",
+        example        = "Example",         example_d       = "example toggle",
+        example_dd     = "Example Dropdown",example_dd_d    = "choose an option",
+        anti_afk       = "Anti-AFK",        anti_afk_d      = "prevents idle kick",
+        fullbright     = "Fullbright",      fullbright_d    = "max ambient lighting",
+        show_users     = "Show others using script", show_users_d = "shows cat logo above MeowHub users",
+        gui_keybind    = "GUI KEYBIND",
+        interface      = "INTERFACE",
+        toast_notif    = "Toast Notifications", toast_notif_d = "show popup when toggling features",
+        remember_state = "Remember State",  remember_state_d = "save toggles on close",
+        keybind_desc   = "Bind a key to hide/show the GUI.\nActive scripts keep running while hidden.",
+        change_key     = "Change key",
+        example_section = "EXAMPLE",
+        utility_section = "UTILITY",
+        world_section   = "WORLD",
+        social_section  = "SOCIAL",
+    },
+    es = {
+        select_lang    = "Por favor selecciona tu idioma",
+        confirm        = "Confirmar",
+        tabs           = "PESTAÑAS",
+        executor_label = "ejecutor",
+        example        = "Ejemplo",         example_d       = "toggle de ejemplo",
+        example_dd     = "Menú Ejemplo",    example_dd_d    = "elige una opción",
+        anti_afk       = "Anti-AFK",        anti_afk_d      = "evita la expulsión por inactividad",
+        fullbright     = "Luz Total",       fullbright_d    = "iluminación máxima",
+        show_users     = "Ver usuarios del script", show_users_d = "logo encima de otros usuarios",
+        gui_keybind    = "TECLA DE ACCESO",
+        interface      = "INTERFAZ",
+        toast_notif    = "Notificaciones",  toast_notif_d   = "mostrar popup al activar funciones",
+        remember_state = "Recordar Estado", remember_state_d = "guardar ajustes al cerrar",
+        keybind_desc   = "Asigna una tecla para ocultar/mostrar la GUI.\nLos scripts activos siguen funcionando.",
+        change_key     = "Cambiar tecla",
+        example_section = "EJEMPLO",
+        utility_section = "UTILIDAD",
+        world_section   = "MUNDO",
+        social_section  = "SOCIAL",
+    },
+    fr = {
+        select_lang    = "Veuillez sélectionner votre langue",
+        confirm        = "Confirmer",
+        tabs           = "ONGLETS",
+        executor_label = "exécuteur",
+        example        = "Exemple",         example_d       = "toggle exemple",
+        example_dd     = "Menu Exemple",    example_dd_d    = "choisir une option",
+        anti_afk       = "Anti-AFK",        anti_afk_d      = "empêche l'expulsion pour inactivité",
+        fullbright     = "Pleine Lumière",  fullbright_d    = "éclairage maximal",
+        show_users     = "Voir utilisateurs", show_users_d  = "logo au-dessus des autres utilisateurs",
+        gui_keybind    = "RACCOURCI GUI",
+        interface      = "INTERFACE",
+        toast_notif    = "Notifications",   toast_notif_d   = "popup lors de l'activation",
+        remember_state = "Mémoriser État",  remember_state_d = "sauvegarder à la fermeture",
+        keybind_desc   = "Assignez une touche pour masquer/afficher la GUI.\nLes scripts actifs continuent.",
+        change_key     = "Changer la touche",
+        example_section = "EXEMPLE",
+        utility_section = "UTILITAIRE",
+        world_section   = "MONDE",
+        social_section  = "SOCIAL",
+    },
+    de = {
+        select_lang    = "Bitte wähle deine Sprache",
+        confirm        = "Bestätigen",
+        tabs           = "TABS",
+        executor_label = "Executor",
+        example        = "Beispiel",        example_d       = "Beispiel-Toggle",
+        example_dd     = "Beispiel Menü",   example_dd_d    = "Option wählen",
+        anti_afk       = "Anti-AFK",        anti_afk_d      = "verhindert AFK-Kick",
+        fullbright     = "Vollhell",        fullbright_d    = "maximale Beleuchtung",
+        show_users     = "Script-Nutzer anzeigen", show_users_d = "Logo über Script-Nutzern",
+        gui_keybind    = "GUI-TASTE",
+        interface      = "OBERFLÄCHE",
+        toast_notif    = "Benachrichtigungen", toast_notif_d = "Popup beim Aktivieren",
+        remember_state = "Zustand merken",  remember_state_d = "Einstellungen beim Schließen speichern",
+        keybind_desc   = "Taste zum Ein-/Ausblenden der GUI.\nAktive Skripte laufen weiter.",
+        change_key     = "Taste ändern",
+        example_section = "BEISPIEL",
+        utility_section = "DIENSTPROGRAMM",
+        world_section   = "WELT",
+        social_section  = "SOZIAL",
+    },
+    ja = {
+        select_lang    = "言語を選択してください",
+        confirm        = "確認",
+        tabs           = "タブ",
+        executor_label = "実行者",
+        example        = "例",              example_d       = "例のトグル",
+        example_dd     = "例のドロップダウン", example_dd_d  = "オプションを選択",
+        anti_afk       = "アンチAFK",       anti_afk_d      = "アイドルキックを防ぐ",
+        fullbright     = "フルブライト",    fullbright_d    = "最大環境照明",
+        show_users     = "スクリプト使用者を表示", show_users_d = "他のMeowHubユーザーの上にロゴ",
+        gui_keybind    = "GUIキーバインド",
+        interface      = "インターフェース",
+        toast_notif    = "通知",            toast_notif_d   = "機能切り替え時にポップアップ",
+        remember_state = "状態を記憶",      remember_state_d = "閉じるときに設定を保存",
+        keybind_desc   = "GUIの表示/非表示のキーをバインドします。\nアクティブなスクリプトは実行され続けます。",
+        change_key     = "キー変更",
+        example_section = "例",
+        utility_section = "ユーティリティ",
+        world_section   = "ワールド",
+        social_section  = "ソーシャル",
+    },
+    zh = {
+        select_lang    = "请选择您的语言",
+        confirm        = "确认",
+        tabs           = "标签",
+        executor_label = "执行器",
+        example        = "示例",            example_d       = "示例开关",
+        example_dd     = "示例下拉菜单",    example_dd_d    = "选择一个选项",
+        anti_afk       = "防挂机",          anti_afk_d      = "防止空闲踢出",
+        fullbright     = "全亮",            fullbright_d    = "最大环境亮度",
+        show_users     = "显示脚本用户",    show_users_d    = "在其他用户头上显示标志",
+        gui_keybind    = "GUI快捷键",
+        interface      = "界面",
+        toast_notif    = "弹出通知",        toast_notif_d   = "切换功能时显示弹窗",
+        remember_state = "记住状态",        remember_state_d = "关闭时保存设置",
+        keybind_desc   = "绑定一个键来隐藏/显示 GUI。\n活动脚本在隐藏时继续运行。",
+        change_key     = "更改键",
+        example_section = "示例",
+        utility_section = "工具",
+        world_section   = "世界",
+        social_section  = "社交",
+    },
+    ko = {
+        select_lang    = "언어를 선택하세요",
+        confirm        = "확인",
+        tabs           = "탭",
+        executor_label = "실행기",
+        example        = "예시",            example_d       = "예시 토글",
+        example_dd     = "예시 드롭다운",   example_dd_d    = "옵션 선택",
+        anti_afk       = "안티-AFK",        anti_afk_d      = "자리비움 강퇴 방지",
+        fullbright     = "풀브라이트",      fullbright_d    = "최대 조명",
+        show_users     = "스크립트 사용자 표시", show_users_d = "다른 MeowHub 사용자 위에 로고",
+        gui_keybind    = "GUI 단축키",
+        interface      = "인터페이스",
+        toast_notif    = "알림",            toast_notif_d   = "기능 토글 시 팝업 표시",
+        remember_state = "상태 기억",       remember_state_d = "닫을 때 설정 저장",
+        keybind_desc   = "GUI를 숨기거나 표시할 키를 바인딩합니다.\n활성 스크립트는 숨겨진 동안 계속 실행됩니다.",
+        change_key     = "키 변경",
+        example_section = "예시",
+        utility_section = "유틸리티",
+        world_section   = "월드",
+        social_section  = "소셜",
+    },
+    pt = {
+        select_lang    = "Por favor selecione seu idioma",
+        confirm        = "Confirmar",
+        tabs           = "ABAS",
+        executor_label = "executor",
+        example        = "Exemplo",         example_d       = "toggle de exemplo",
+        example_dd     = "Menu Exemplo",    example_dd_d    = "escolha uma opção",
+        anti_afk       = "Anti-AFK",        anti_afk_d      = "evita kick por inatividade",
+        fullbright     = "Brilho Total",    fullbright_d    = "iluminação máxima",
+        show_users     = "Ver usuários do script", show_users_d = "logo acima de outros usuários",
+        gui_keybind    = "TECLA GUI",
+        interface      = "INTERFACE",
+        toast_notif    = "Notificações",    toast_notif_d   = "popup ao ativar funções",
+        remember_state = "Lembrar Estado",  remember_state_d = "salvar ao fechar",
+        keybind_desc   = "Atribua uma tecla para esconder/mostrar a GUI.\nScripts ativos continuam rodando.",
+        change_key     = "Mudar tecla",
+        example_section = "EXEMPLO",
+        utility_section = "UTILIDADE",
+        world_section   = "MUNDO",
+        social_section  = "SOCIAL",
+    },
+    hi = {
+        select_lang    = "कृपया अपनी भाषा चुनें",
+        confirm        = "पुष्टि करें",
+        tabs           = "टैब",
+        executor_label = "एग्ज़ीक्यूटर",
+        example        = "उदाहरण",          example_d       = "उदाहरण टॉगल",
+        example_dd     = "उदाहरण ड्रॉपडाउन", example_dd_d  = "एक विकल्प चुनें",
+        anti_afk       = "एंटी-AFK",        anti_afk_d      = "आलस्य किक रोकता है",
+        fullbright     = "पूर्ण प्रकाश",    fullbright_d    = "अधिकतम परिवेश प्रकाश",
+        show_users     = "स्क्रिप्ट उपयोगकर्ता दिखाएं", show_users_d = "अन्य MeowHub उपयोगकर्ताओं के ऊपर लोगो",
+        gui_keybind    = "GUI कीबाइंड",
+        interface      = "इंटरफ़ेस",
+        toast_notif    = "सूचनाएं",          toast_notif_d  = "टॉगल पर पॉपअप दिखाएं",
+        remember_state = "स्थिति याद रखें", remember_state_d = "बंद पर सेटिंग सहेजें",
+        keybind_desc   = "GUI छुपाने/दिखाने के लिए कुंजी बाइंड करें।\nसक्रिय स्क्रिप्ट छुपे होने पर भी चलती हैं।",
+        change_key     = "कुंजी बदलें",
+        example_section = "उदाहरण",
+        utility_section = "उपयोगिता",
+        world_section   = "दुनिया",
+        social_section  = "सामाजिक",
+    },
+    vi = {
+        select_lang    = "Vui lòng chọn ngôn ngữ của bạn",
+        confirm        = "Xác nhận",
+        tabs           = "CÁC TAB",
+        executor_label = "executor",
+        example        = "Ví dụ",           example_d       = "toggle ví dụ",
+        example_dd     = "Menu Ví dụ",      example_dd_d    = "chọn một tùy chọn",
+        anti_afk       = "Chống AFK",       anti_afk_d      = "ngăn bị kick khi không hoạt động",
+        fullbright     = "Sáng Toàn Phần",  fullbright_d    = "ánh sáng tối đa",
+        show_users     = "Hiện người dùng script", show_users_d = "logo trên đầu người dùng MeowHub",
+        gui_keybind    = "PHÍM TẮT GUI",
+        interface      = "GIAO DIỆN",
+        toast_notif    = "Thông báo",       toast_notif_d   = "hiển thị popup khi bật tính năng",
+        remember_state = "Nhớ Trạng Thái",  remember_state_d = "lưu cài đặt khi đóng",
+        keybind_desc   = "Gán phím để ẩn/hiện GUI.\nCác tập lệnh đang chạy vẫn tiếp tục.",
+        change_key     = "Đổi phím",
+        example_section = "VÍ DỤ",
+        utility_section = "TIỆN ÍCH",
+        world_section   = "THẾ GIỚI",
+        social_section  = "XÃ HỘI",
+    },
+    ru = {
+        select_lang    = "Пожалуйста, выберите язык",
+        confirm        = "Подтвердить",
+        tabs           = "ВКЛАДКИ",
+        executor_label = "исполнитель",
+        example        = "Пример",          example_d       = "пример переключателя",
+        example_dd     = "Выпадающий пример", example_dd_d  = "выберите вариант",
+        anti_afk       = "Анти-AFK",        anti_afk_d      = "предотвращает кик за бездействие",
+        fullbright     = "Полная яркость",  fullbright_d    = "максимальное освещение",
+        show_users     = "Показать пользователей скрипта", show_users_d = "лого над другими пользователями MeowHub",
+        gui_keybind    = "КЛАВИША GUI",
+        interface      = "ИНТЕРФЕЙС",
+        toast_notif    = "Уведомления",     toast_notif_d   = "показывать попап при переключении",
+        remember_state = "Запомнить состояние", remember_state_d = "сохранять настройки при закрытии",
+        keybind_desc   = "Привяжите клавишу для скрытия/показа GUI.\nАктивные скрипты продолжают работать.",
+        change_key     = "Изменить клавишу",
+        example_section = "ПРИМЕР",
+        utility_section = "УТИЛИТА",
+        world_section   = "МИР",
+        social_section  = "СОЦИАЛЬНОЕ",
+    },
+    -- NEW LANGUAGES ↓
+    ar = {
+        select_lang    = "الرجاء اختيار لغتك",
+        confirm        = "تأكيد",
+        tabs           = "التبويبات",
+        executor_label = "المنفذ",
+        example        = "مثال",            example_d       = "زر تبديل مثال",
+        example_dd     = "قائمة مثال",      example_dd_d    = "اختر خياراً",
+        anti_afk       = "مكافح AFK",       anti_afk_d      = "يمنع الطرد بسبب الخمول",
+        fullbright     = "إضاءة كاملة",     fullbright_d    = "أقصى إضاءة محيطة",
+        show_users     = "عرض مستخدمي السكريبت", show_users_d = "شعار فوق مستخدمي MeowHub",
+        gui_keybind    = "مفتاح الواجهة",
+        interface      = "الواجهة",
+        toast_notif    = "الإشعارات",       toast_notif_d   = "عرض نافذة عند التبديل",
+        remember_state = "تذكر الحالة",     remember_state_d = "حفظ الإعدادات عند الإغلاق",
+        keybind_desc   = "اربط مفتاحاً لإخفاء/عرض الواجهة.\nالسكريبتات النشطة تستمر أثناء الإخفاء.",
+        change_key     = "تغيير المفتاح",
+        example_section = "مثال",
+        utility_section = "أداة",
+        world_section   = "العالم",
+        social_section  = "اجتماعي",
+    },
+    tr = {
+        select_lang    = "Lütfen dilinizi seçin",
+        confirm        = "Onayla",
+        tabs           = "SEKMELER",
+        executor_label = "yürütücü",
+        example        = "Örnek",           example_d       = "örnek düğme",
+        example_dd     = "Örnek Menü",      example_dd_d    = "bir seçenek seçin",
+        anti_afk       = "Anti-AFK",        anti_afk_d      = "boşta atılmayı önler",
+        fullbright     = "Tam Işık",        fullbright_d    = "maksimum ortam ışığı",
+        show_users     = "Script kullananları göster", show_users_d = "MeowHub kullanıcılarının üstünde logo",
+        gui_keybind    = "GUI TUŞU",
+        interface      = "ARAYÜZ",
+        toast_notif    = "Bildirimler",     toast_notif_d   = "özellik değiştirildiğinde popup göster",
+        remember_state = "Durumu Hatırla",  remember_state_d = "kapanırken ayarları kaydet",
+        keybind_desc   = "GUI'yi gizlemek/göstermek için bir tuş atayın.\nAktif scriptler çalışmaya devam eder.",
+        change_key     = "Tuşu değiştir",
+        example_section = "ÖRNEK",
+        utility_section = "ARAÇ",
+        world_section   = "DÜNYA",
+        social_section  = "SOSYAL",
+    },
+    nl = {
+        select_lang    = "Selecteer uw taal",
+        confirm        = "Bevestigen",
+        tabs           = "TABBLADEN",
+        executor_label = "uitvoerder",
+        example        = "Voorbeeld",       example_d       = "voorbeeld schakelaar",
+        example_dd     = "Voorbeeld Menu",  example_dd_d    = "kies een optie",
+        anti_afk       = "Anti-AFK",        anti_afk_d      = "voorkomt kick wegens inactiviteit",
+        fullbright     = "Vollicht",        fullbright_d    = "maximale omgevingsverlichting",
+        show_users     = "Scriptgebruikers tonen", show_users_d = "logo boven MeowHub-gebruikers",
+        gui_keybind    = "GUI TOETS",
+        interface      = "INTERFACE",
+        toast_notif    = "Meldingen",       toast_notif_d   = "popup bij het wisselen van functies",
+        remember_state = "Staat Onthouden", remember_state_d = "instellingen opslaan bij sluiten",
+        keybind_desc   = "Wijs een toets toe om de GUI te verbergen/tonen.\nActieve scripts blijven draaien.",
+        change_key     = "Toets wijzigen",
+        example_section = "VOORBEELD",
+        utility_section = "HULPMIDDEL",
+        world_section   = "WERELD",
+        social_section  = "SOCIAAL",
+    },
+    pl = {
+        select_lang    = "Proszę wybrać język",
+        confirm        = "Potwierdź",
+        tabs           = "ZAKŁADKI",
+        executor_label = "wykonawca",
+        example        = "Przykład",        example_d       = "przykładowy przełącznik",
+        example_dd     = "Menu Przykład",   example_dd_d    = "wybierz opcję",
+        anti_afk       = "Anti-AFK",        anti_afk_d      = "zapobiega wyrzuceniu za bezczynność",
+        fullbright     = "Pełna Jasność",   fullbright_d    = "maksymalne oświetlenie otoczenia",
+        show_users     = "Pokaż użytkowników skryptu", show_users_d = "logo nad innymi użytkownikami MeowHub",
+        gui_keybind    = "KLAWISZ GUI",
+        interface      = "INTERFEJS",
+        toast_notif    = "Powiadomienia",   toast_notif_d   = "popup przy przełączaniu funkcji",
+        remember_state = "Zapamiętaj Stan", remember_state_d = "zapisz ustawienia przy zamknięciu",
+        keybind_desc   = "Przypisz klawisz do ukrywania/pokazywania GUI.\nAktywne skrypty działają podczas ukrycia.",
+        change_key     = "Zmień klawisz",
+        example_section = "PRZYKŁAD",
+        utility_section = "NARZĘDZIE",
+        world_section   = "ŚWIAT",
+        social_section  = "SPOŁECZNY",
+    },
+    th = {
+        select_lang    = "กรุณาเลือกภาษาของคุณ",
+        confirm        = "ยืนยัน",
+        tabs           = "แท็บ",
+        executor_label = "ตัวดำเนินการ",
+        example        = "ตัวอย่าง",        example_d       = "ปุ่มสลับตัวอย่าง",
+        example_dd     = "เมนูตัวอย่าง",    example_dd_d    = "เลือกตัวเลือก",
+        anti_afk       = "แอนตี้ AFK",      anti_afk_d      = "ป้องกันการถูกเตะเนื่องจากไม่ใช้งาน",
+        fullbright     = "ความสว่างเต็ม",   fullbright_d    = "แสงสูงสุด",
+        show_users     = "แสดงผู้ใช้สคริปต์", show_users_d = "โลโก้เหนือผู้ใช้ MeowHub",
+        gui_keybind    = "ปุ่มลัด GUI",
+        interface      = "อินเทอร์เฟซ",
+        toast_notif    = "การแจ้งเตือน",    toast_notif_d   = "แสดงป๊อปอัพเมื่อสลับฟีเจอร์",
+        remember_state = "จดจำสถานะ",       remember_state_d = "บันทึกการตั้งค่าเมื่อปิด",
+        keybind_desc   = "กำหนดปุ่มเพื่อซ่อน/แสดง GUI\nสคริปต์ที่ทำงานอยู่จะยังคงทำงานต่อไป",
+        change_key     = "เปลี่ยนปุ่ม",
+        example_section = "ตัวอย่าง",
+        utility_section = "ยูทิลิตี้",
+        world_section   = "โลก",
+        social_section  = "สังคม",
+    },
+    id = {
+        select_lang    = "Silakan pilih bahasa Anda",
+        confirm        = "Konfirmasi",
+        tabs           = "TAB",
+        executor_label = "eksekutor",
+        example        = "Contoh",          example_d       = "tombol contoh",
+        example_dd     = "Menu Contoh",     example_dd_d    = "pilih opsi",
+        anti_afk       = "Anti-AFK",        anti_afk_d      = "mencegah kick karena tidak aktif",
+        fullbright     = "Cahaya Penuh",    fullbright_d    = "pencahayaan maksimal",
+        show_users     = "Tampilkan pengguna skrip", show_users_d = "logo di atas pengguna MeowHub",
+        gui_keybind    = "TOMBOL GUI",
+        interface      = "ANTARMUKA",
+        toast_notif    = "Notifikasi",      toast_notif_d   = "tampilkan popup saat mengalihkan fitur",
+        remember_state = "Ingat Status",    remember_state_d = "simpan pengaturan saat ditutup",
+        keybind_desc   = "Tetapkan tombol untuk menyembunyikan/menampilkan GUI.\nSkrip aktif tetap berjalan saat tersembunyi.",
+        change_key     = "Ubah tombol",
+        example_section = "CONTOH",
+        utility_section = "UTILITAS",
+        world_section   = "DUNIA",
+        social_section  = "SOSIAL",
+    },
+    uk = {
+        select_lang    = "Будь ласка, оберіть мову",
+        confirm        = "Підтвердити",
+        tabs           = "ВКЛАДКИ",
+        executor_label = "виконавець",
+        example        = "Приклад",         example_d       = "приклад перемикача",
+        example_dd     = "Приклад меню",    example_dd_d    = "оберіть варіант",
+        anti_afk       = "Анти-AFK",        anti_afk_d      = "запобігає кіку за бездіяльність",
+        fullbright     = "Повна яскравість", fullbright_d   = "максимальне освітлення",
+        show_users     = "Показати користувачів скрипту", show_users_d = "логотип над іншими користувачами MeowHub",
+        gui_keybind    = "КЛАВІША GUI",
+        interface      = "ІНТЕРФЕЙС",
+        toast_notif    = "Сповіщення",      toast_notif_d   = "показувати попап при перемиканні",
+        remember_state = "Запам'ятати стан", remember_state_d = "зберігати налаштування при закритті",
+        keybind_desc   = "Прив'яжіть клавішу для приховування/показу GUI.\nАктивні скрипти продовжують працювати.",
+        change_key     = "Змінити клавішу",
+        example_section = "ПРИКЛАД",
+        utility_section = "УТИЛІТА",
+        world_section   = "СВІТ",
+        social_section  = "СОЦІАЛЬНЕ",
+    },
+    it = {
+        select_lang    = "Seleziona la tua lingua",
+        confirm        = "Conferma",
+        tabs           = "SCHEDE",
+        executor_label = "esecutore",
+        example        = "Esempio",         example_d       = "interruttore di esempio",
+        example_dd     = "Menu Esempio",    example_dd_d    = "scegli un'opzione",
+        anti_afk       = "Anti-AFK",        anti_afk_d      = "previene il kick per inattività",
+        fullbright     = "Luce Totale",     fullbright_d    = "illuminazione massima",
+        show_users     = "Mostra utenti script", show_users_d = "logo sopra gli utenti MeowHub",
+        gui_keybind    = "TASTO GUI",
+        interface      = "INTERFACCIA",
+        toast_notif    = "Notifiche",       toast_notif_d   = "popup quando si attivano funzioni",
+        remember_state = "Ricorda Stato",   remember_state_d = "salva le impostazioni alla chiusura",
+        keybind_desc   = "Associa un tasto per nascondere/mostrare la GUI.\nGli script attivi continuano a funzionare.",
+        change_key     = "Cambia tasto",
+        example_section = "ESEMPIO",
+        utility_section = "UTILITÀ",
+        world_section   = "MONDO",
+        social_section  = "SOCIALE",
+    },
+}
+
+-- ============================================================
+-- BILLBOARD TAG — stamp OUR character so others can detect us.
+-- The BillboardGui is parented to Head so it persists and
+-- other clients' "Show others using script" scan can find it.
+-- ============================================================
+local function stampCharacter(char)
+    if not char then return end
+    local head = char:WaitForChild("Head", 5)
+    if not head then return end
+    -- Set the attribute that other clients check
+    char:SetAttribute(MEOW_ATTR_KEY, MEOW_ATTR_VAL)
+    -- Also place the billboard on our OWN head
+    if head:FindFirstChild(MEOW_TAG_NAME) then return end
+    local bb = Instance.new("BillboardGui")
+    bb.Name      = MEOW_TAG_NAME
+    bb.Size      = UDim2.new(0, 60, 0, 60)
+    bb.StudsOffset = Vector3.new(0, 3.5, 0)
+    bb.AlwaysOnTop = true
+    bb.Adornee   = head
+    bb.Parent    = head
+    local img = Instance.new("ImageLabel")
+    img.Size               = UDim2.new(1, 0, 1, 0)
+    img.BackgroundTransparency = 1
+    img.Image              = MEOW_IMAGE_ID
+    img.ScaleType          = Enum.ScaleType.Fit
+    img.Parent             = bb
+end
+
+if lp.Character then task.spawn(stampCharacter, lp.Character) end
+lp.CharacterAdded:Connect(function(char)
+    task.wait(0.5)
+    stampCharacter(char)
+end)
+
+-- ============================================================
+-- DESTROY OLD INSTANCES
+-- ============================================================
+for _, n in ipairs({"MeowHub", "MeowHubLoader"}) do
+    local old = CoreGui:FindFirstChild(n)
+    if old then old:Destroy() end
+end
+
+-- ============================================================
+-- LANGUAGE LOADER GUI
+-- ============================================================
+local selectedLang = "en"
+local T = STRINGS["en"]
+
+local LoaderGui = Instance.new("ScreenGui")
+LoaderGui.Name            = "MeowHubLoader"
+LoaderGui.ResetOnSpawn    = false
+LoaderGui.ZIndexBehavior  = Enum.ZIndexBehavior.Sibling
+LoaderGui.Parent          = CoreGui
+
+local LoaderFrame = Instance.new("Frame")
+LoaderFrame.Size            = UDim2.new(0, 480, 0, 600)
+LoaderFrame.Position        = UDim2.new(0.5, -240, 0.5, -300)
+LoaderFrame.BackgroundColor3 = Color3.fromRGB(14, 14, 17)
+LoaderFrame.BorderSizePixel = 0
+LoaderFrame.Active          = true
+LoaderFrame.Draggable       = true
+LoaderFrame.Parent          = LoaderGui
+local lfc = Instance.new("UICorner"); lfc.CornerRadius = UDim.new(0, 14); lfc.Parent = LoaderFrame
+local lfs = Instance.new("UIStroke"); lfs.Color = Color3.fromRGB(60, 50, 120); lfs.Thickness = 1.5; lfs.Parent = LoaderFrame
+
+local LoaderCat = Instance.new("ImageLabel")
+LoaderCat.Size               = UDim2.new(0, 90, 0, 90)
+LoaderCat.Position           = UDim2.new(0.5, -45, 0, 22)
+LoaderCat.BackgroundTransparency = 1
+LoaderCat.Image              = MEOW_IMAGE_ID
+LoaderCat.ScaleType          = Enum.ScaleType.Fit
+LoaderCat.Parent             = LoaderFrame
+
+local LoaderPrompt = Instance.new("TextLabel")
+LoaderPrompt.Text             = "Please select ur language"
+LoaderPrompt.Font             = Enum.Font.GothamBold
+LoaderPrompt.TextSize         = 15
+LoaderPrompt.TextColor3       = Color3.fromRGB(200, 190, 255)
+LoaderPrompt.BackgroundTransparency = 1
+LoaderPrompt.Position         = UDim2.new(0, 0, 0, 120)
+LoaderPrompt.Size             = UDim2.new(1, 0, 0, 22)
+LoaderPrompt.TextXAlignment   = Enum.TextXAlignment.Center
+LoaderPrompt.Parent           = LoaderFrame
+
+local PromptLine = Instance.new("Frame")
+PromptLine.Size             = UDim2.new(1, -48, 0, 1)
+PromptLine.Position         = UDim2.new(0, 24, 0, 148)
+PromptLine.BackgroundColor3 = Color3.fromRGB(36, 30, 70)
+PromptLine.BorderSizePixel  = 0
+PromptLine.Parent           = LoaderFrame
+
+local LangScroll = Instance.new("ScrollingFrame")
+LangScroll.Size                = UDim2.new(1, -32, 0, 350)
+LangScroll.Position            = UDim2.new(0, 16, 0, 158)
+LangScroll.BackgroundTransparency = 1
+LangScroll.BorderSizePixel     = 0
+LangScroll.ScrollBarThickness  = 3
+LangScroll.ScrollBarImageColor3 = Color3.fromRGB(100, 80, 200)
+LangScroll.CanvasSize          = UDim2.new(0, 0, 0, 0)
+LangScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+LangScroll.Parent              = LoaderFrame
+
+local LangLayout = Instance.new("UIListLayout")
+LangLayout.SortOrder = Enum.SortOrder.LayoutOrder
+LangLayout.Padding   = UDim.new(0, 6)
+LangLayout.Parent    = LangScroll
+
+local selectedLangCode = "en"
+local langBtns = {}
+
+local ConfirmBtn = Instance.new("TextButton")
+ConfirmBtn.Size            = UDim2.new(1, -32, 0, 44)
+ConfirmBtn.Position        = UDim2.new(0, 16, 1, -60)
+ConfirmBtn.BackgroundColor3 = Color3.fromRGB(45, 35, 100)
+ConfirmBtn.BorderSizePixel = 0
+ConfirmBtn.Text            = STRINGS["en"].confirm
+ConfirmBtn.Font            = Enum.Font.GothamBold
+ConfirmBtn.TextSize        = 14
+ConfirmBtn.TextColor3      = Color3.fromRGB(210, 200, 255)
+ConfirmBtn.AutoButtonColor = false
+ConfirmBtn.Parent          = LoaderFrame
+local cbc = Instance.new("UICorner"); cbc.CornerRadius = UDim.new(0, 10); cbc.Parent = ConfirmBtn
+local cbs = Instance.new("UIStroke"); cbs.Color = Color3.fromRGB(100, 80, 210); cbs.Thickness = 1.5; cbs.Parent = ConfirmBtn
+
+for idx, langData in ipairs(LANGUAGES) do
+    local btn = Instance.new("TextButton")
+    btn.Size            = UDim2.new(1, 0, 0, 48)
+    btn.BackgroundColor3 = Color3.fromRGB(20, 20, 28)
+    btn.BorderSizePixel = 0
+    btn.Text            = ""
+    btn.LayoutOrder     = idx
+    btn.Parent          = LangScroll
+    local bc = Instance.new("UICorner"); bc.CornerRadius = UDim.new(0, 9); bc.Parent = btn
+    local bs = Instance.new("UIStroke"); bs.Color = Color3.fromRGB(36, 36, 52); bs.Thickness = 1; bs.Parent = btn
+
+    local flagLabel = Instance.new("TextLabel")
+    flagLabel.Text                = langData.flag
+    flagLabel.Font                = Enum.Font.GothamBold
+    flagLabel.TextSize            = 24
+    flagLabel.BackgroundTransparency = 1
+    flagLabel.Position            = UDim2.new(0, 12, 0, 0)
+    flagLabel.Size                = UDim2.new(0, 36, 1, 0)
+    flagLabel.TextXAlignment      = Enum.TextXAlignment.Center
+    flagLabel.Parent              = btn
+
+    local nativeLabel = Instance.new("TextLabel")
+    nativeLabel.Text              = langData.native
+    nativeLabel.Font              = Enum.Font.GothamBold
+    nativeLabel.TextSize          = 13
+    nativeLabel.TextColor3        = Color3.fromRGB(210, 205, 255)
+    nativeLabel.BackgroundTransparency = 1
+    nativeLabel.Position          = UDim2.new(0, 58, 0, 5)
+    nativeLabel.Size              = UDim2.new(0.55, 0, 0, 18)
+    nativeLabel.TextXAlignment    = Enum.TextXAlignment.Left
+    nativeLabel.Parent            = btn
+
+    local engLabel = Instance.new("TextLabel")
+    engLabel.Text                 = langData.name
+    engLabel.Font                 = Enum.Font.Gotham
+    engLabel.TextSize             = 10
+    engLabel.TextColor3           = Color3.fromRGB(86, 80, 120)
+    engLabel.BackgroundTransparency = 1
+    engLabel.Position             = UDim2.new(0, 58, 0, 25)
+    engLabel.Size                 = UDim2.new(0.55, 0, 0, 14)
+    engLabel.TextXAlignment       = Enum.TextXAlignment.Left
+    engLabel.Parent               = btn
+
+    local check = Instance.new("TextLabel")
+    check.Text               = "✓"
+    check.Font               = Enum.Font.GothamBold
+    check.TextSize           = 17
+    check.TextColor3         = Color3.fromRGB(157, 143, 255)
+    check.BackgroundTransparency = 1
+    check.Position           = UDim2.new(1, -38, 0, 0)
+    check.Size               = UDim2.new(0, 32, 1, 0)
+    check.TextXAlignment     = Enum.TextXAlignment.Center
+    check.Visible            = false
+    check.Parent             = btn
+
+    langBtns[langData.code] = { btn = btn, stroke = bs, check = check }
+
+    btn.MouseButton1Click:Connect(function()
+        for _, d in pairs(langBtns) do
+            TweenService:Create(d.btn, TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(20, 20, 28)}):Play()
+            d.stroke.Color  = Color3.fromRGB(36, 36, 52)
+            d.check.Visible = false
+        end
+        TweenService:Create(btn, TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(32, 26, 60)}):Play()
+        bs.Color            = Color3.fromRGB(110, 88, 210)
+        check.Visible       = true
+        selectedLangCode    = langData.code
+        local ls            = STRINGS[langData.code] or STRINGS["en"]
+        LoaderPrompt.Text   = ls.select_lang
+        ConfirmBtn.Text     = ls.confirm
+    end)
+    btn.MouseEnter:Connect(function()
+        if selectedLangCode ~= langData.code then
+            TweenService:Create(btn, TweenInfo.new(0.1), {BackgroundColor3 = Color3.fromRGB(25, 23, 38)}):Play()
+        end
+    end)
+    btn.MouseLeave:Connect(function()
+        if selectedLangCode ~= langData.code then
+            TweenService:Create(btn, TweenInfo.new(0.1), {BackgroundColor3 = Color3.fromRGB(20, 20, 28)}):Play()
+        end
+    end)
+end
+
+-- Pre-select English
+do
+    local d = langBtns["en"]
+    if d then
+        d.btn.BackgroundColor3 = Color3.fromRGB(32, 26, 60)
+        d.stroke.Color = Color3.fromRGB(110, 88, 210)
+        d.check.Visible = true
+    end
+end
+
+local loaderDone = false
+ConfirmBtn.MouseButton1Click:Connect(function()
+    if not selectedLangCode or loaderDone then return end
+    loaderDone   = true
+    selectedLang = selectedLangCode
+    T            = STRINGS[selectedLang] or STRINGS["en"]
+    TweenService:Create(LoaderFrame, TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+        BackgroundTransparency = 1,
+        Position = UDim2.new(0.5, -240, 0.5, -260)
+    }):Play()
+    task.wait(0.32)
+    LoaderGui:Destroy()
+    buildMainHub()
+end)
+ConfirmBtn.MouseEnter:Connect(function()
+    TweenService:Create(ConfirmBtn, TweenInfo.new(0.1), {BackgroundColor3 = Color3.fromRGB(62, 48, 136)}):Play()
+end)
+ConfirmBtn.MouseLeave:Connect(function()
+    TweenService:Create(ConfirmBtn, TweenInfo.new(0.1), {BackgroundColor3 = Color3.fromRGB(45, 35, 100)}):Play()
+end)
+
+-- ============================================================
+-- MAIN HUB
+-- ============================================================
+function buildMainHub()
+
+local thumbUrl = Players:GetUserThumbnailAsync(userId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size48x48)
+local toggleKey     = Enum.KeyCode.RightShift
+local guiVisible    = true
+local listeningForKey = false
+
+if CoreGui:FindFirstChild("MeowHub") then CoreGui:FindFirstChild("MeowHub"):Destroy() end
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name           = "MeowHub"
+ScreenGui.ResetOnSpawn   = false
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+ScreenGui.Parent         = CoreGui
+
+local Main = Instance.new("Frame")
+Main.Name            = "Main"
+Main.Size            = UDim2.new(0, 620, 0, 500)
+Main.Position        = UDim2.new(0.5, -310, 0.5, -250)
+Main.BackgroundColor3 = Color3.fromRGB(20, 20, 23)
+Main.BorderSizePixel = 0
+Main.Active          = true
+Main.Draggable       = true
+Main.Parent          = ScreenGui
+local mc = Instance.new("UICorner"); mc.CornerRadius = UDim.new(0,10); mc.Parent = Main
+local ms = Instance.new("UIStroke"); ms.Color = Color3.fromRGB(42,42,50); ms.Thickness = 1; ms.Parent = Main
+
+-- Titlebar
+local Titlebar = Instance.new("Frame")
+Titlebar.Size            = UDim2.new(1, 0, 0, 38)
+Titlebar.BackgroundColor3 = Color3.fromRGB(14, 14, 17)
+Titlebar.BorderSizePixel = 0
+Titlebar.Parent          = Main
+local tc = Instance.new("UICorner"); tc.CornerRadius = UDim.new(0,10); tc.Parent = Titlebar
+local tp = Instance.new("Frame"); tp.Size = UDim2.new(1,0,0,10); tp.Position = UDim2.new(0,0,1,-10); tp.BackgroundColor3 = Color3.fromRGB(14,14,17); tp.BorderSizePixel=0; tp.Parent=Titlebar
+local td = Instance.new("Frame"); td.Size = UDim2.new(1,0,0,1); td.Position = UDim2.new(0,0,1,-1); td.BackgroundColor3 = Color3.fromRGB(34,34,40); td.BorderSizePixel=0; td.Parent=Titlebar
+
+local HubName = Instance.new("TextLabel")
+HubName.Text = "MEOW HUB"; HubName.Font = Enum.Font.GothamBold; HubName.TextSize = 12
+HubName.TextColor3 = Color3.fromRGB(157,143,255); HubName.BackgroundTransparency = 1
+HubName.Position = UDim2.new(0,14,0,0); HubName.Size = UDim2.new(0,120,1,0)
+HubName.TextXAlignment = Enum.TextXAlignment.Left; HubName.Parent = Titlebar
+
+local HubVersion = Instance.new("TextLabel")
+HubVersion.Text = "v2.4"; HubVersion.Font = Enum.Font.Code; HubVersion.TextSize = 10
+HubVersion.TextColor3 = Color3.fromRGB(74,74,90); HubVersion.BackgroundTransparency = 1
+HubVersion.Position = UDim2.new(0,130,0,0); HubVersion.Size = UDim2.new(0,80,1,0)
+HubVersion.TextXAlignment = Enum.TextXAlignment.Left; HubVersion.Parent = Titlebar
+
+local function makeDot(color, xOff)
+    local d = Instance.new("TextButton")
+    d.Size = UDim2.new(0,11,0,11); d.Position = UDim2.new(1,xOff,0.5,-5)
+    d.BackgroundColor3 = color; d.BorderSizePixel=0; d.Text=""; d.Parent=Titlebar
+    local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(1,0); c.Parent=d
+    return d
+end
+local CloseBtn = makeDot(Color3.fromRGB(255,95,87),-38)
+local MinBtn   = makeDot(Color3.fromRGB(254,188,46),-56)
+local MaxBtn   = makeDot(Color3.fromRGB(40,200,64),-74)
+CloseBtn.MouseButton1Click:Connect(function() ScreenGui:Destroy() end)
+MinBtn.MouseButton1Click:Connect(function() guiVisible=false; Main.Visible=false end)
+
+-- Sidebar
+local Sidebar = Instance.new("Frame")
+Sidebar.Name = "Sidebar"; Sidebar.Size = UDim2.new(0,140,1,-38)
+Sidebar.Position = UDim2.new(0,0,0,38); Sidebar.BackgroundColor3 = Color3.fromRGB(14,14,17)
+Sidebar.BorderSizePixel=0; Sidebar.Parent=Main
+local sd = Instance.new("Frame"); sd.Size=UDim2.new(0,1,1,0); sd.Position=UDim2.new(1,-1,0,0)
+sd.BackgroundColor3=Color3.fromRGB(30,30,38); sd.BorderSizePixel=0; sd.Parent=Sidebar
+
+local SidebarList = Instance.new("Frame")
+SidebarList.Size = UDim2.new(1,-16,0,400); SidebarList.Position = UDim2.new(0,8,0,10)
+SidebarList.BackgroundTransparency=1; SidebarList.Parent=Sidebar
+local sl = Instance.new("UIListLayout"); sl.SortOrder=Enum.SortOrder.LayoutOrder; sl.Padding=UDim.new(0,3); sl.Parent=SidebarList
+
+local TabsLabel = Instance.new("TextLabel")
+TabsLabel.Text = T.tabs; TabsLabel.Font = Enum.Font.GothamBold; TabsLabel.TextSize = 9
+TabsLabel.TextColor3 = Color3.fromRGB(58,58,72); TabsLabel.BackgroundTransparency=1
+TabsLabel.Size = UDim2.new(1,0,0,20); TabsLabel.TextXAlignment=Enum.TextXAlignment.Left
+TabsLabel.LayoutOrder=0; TabsLabel.Parent=SidebarList
+
+-- Profile card
+local ProfileCard = Instance.new("Frame")
+ProfileCard.Name="ProfileCard"; ProfileCard.Size=UDim2.new(1,-16,0,54)
+ProfileCard.Position=UDim2.new(0,8,1,-66); ProfileCard.BackgroundColor3=Color3.fromRGB(17,17,21)
+ProfileCard.BorderSizePixel=0; ProfileCard.Parent=Sidebar
+local pcc=Instance.new("UICorner"); pcc.CornerRadius=UDim.new(0,7); pcc.Parent=ProfileCard
+local pcs=Instance.new("UIStroke"); pcs.Color=Color3.fromRGB(28,28,36); pcs.Thickness=1; pcs.Parent=ProfileCard
+local pcd=Instance.new("Frame"); pcd.Size=UDim2.new(1,0,0,1); pcd.Position=UDim2.new(0,0,0,-10)
+pcd.BackgroundColor3=Color3.fromRGB(26,26,34); pcd.BorderSizePixel=0; pcd.Parent=ProfileCard
+
+local AvatarFrame=Instance.new("Frame"); AvatarFrame.Size=UDim2.new(0,34,0,34)
+AvatarFrame.Position=UDim2.new(0,8,0.5,-17); AvatarFrame.BackgroundColor3=Color3.fromRGB(26,26,36)
+AvatarFrame.BorderSizePixel=0; AvatarFrame.Parent=ProfileCard
+local afc=Instance.new("UICorner"); afc.CornerRadius=UDim.new(0,7); afc.Parent=AvatarFrame
+local afs=Instance.new("UIStroke"); afs.Color=Color3.fromRGB(42,42,56); afs.Thickness=1; afs.Parent=AvatarFrame
+local AvatarImage=Instance.new("ImageLabel"); AvatarImage.Size=UDim2.new(1,0,1,0)
+AvatarImage.BackgroundTransparency=1; AvatarImage.Image=thumbUrl; AvatarImage.Parent=AvatarFrame
+local aic=Instance.new("UICorner"); aic.CornerRadius=UDim.new(0,7); aic.Parent=AvatarImage
+
+local ProfileName=Instance.new("TextLabel"); ProfileName.Text=username
+ProfileName.Font=Enum.Font.GothamBold; ProfileName.TextSize=12
+ProfileName.TextColor3=Color3.fromRGB(200,200,216); ProfileName.BackgroundTransparency=1
+ProfileName.Position=UDim2.new(0,50,0,8); ProfileName.Size=UDim2.new(1,-58,0,18)
+ProfileName.TextXAlignment=Enum.TextXAlignment.Left; ProfileName.TextTruncate=Enum.TextTruncate.AtEnd
+ProfileName.Parent=ProfileCard
+
+-- executor label — shows detected executor name
+local ProfileLabel=Instance.new("TextLabel")
+ProfileLabel.Text=executorName  -- ← detected executor
+ProfileLabel.Font=Enum.Font.Code; ProfileLabel.TextSize=9
+ProfileLabel.TextColor3=Color3.fromRGB(100,90,160); ProfileLabel.BackgroundTransparency=1
+ProfileLabel.Position=UDim2.new(0,50,0,28); ProfileLabel.Size=UDim2.new(1,-58,0,14)
+ProfileLabel.TextXAlignment=Enum.TextXAlignment.Left; ProfileLabel.Parent=ProfileCard
+
+local OnlineDot=Instance.new("Frame"); OnlineDot.Size=UDim2.new(0,7,0,7)
+OnlineDot.Position=UDim2.new(1,-14,0.5,-3); OnlineDot.BackgroundColor3=Color3.fromRGB(58,138,90)
+OnlineDot.BorderSizePixel=0; OnlineDot.Parent=ProfileCard
+local odc=Instance.new("UICorner"); odc.CornerRadius=UDim.new(1,0); odc.Parent=OnlineDot
+
+-- Content area
+local Content=Instance.new("Frame"); Content.Name="Content"
+Content.Size=UDim2.new(1,-140,1,-38); Content.Position=UDim2.new(0,140,0,38)
+Content.BackgroundTransparency=1; Content.Parent=Main
+
+-- ============================================================
+-- WIDGET HELPERS
+-- ============================================================
+local function makeScrollFrame()
+    local sf=Instance.new("ScrollingFrame")
+    sf.Size=UDim2.new(1,0,1,0); sf.BackgroundTransparency=1; sf.BorderSizePixel=0
+    sf.ScrollBarThickness=2; sf.ScrollBarImageColor3=Color3.fromRGB(42,42,56)
+    sf.CanvasSize=UDim2.new(0,0,0,0); sf.AutomaticCanvasSize=Enum.AutomaticSize.Y
+    sf.Visible=false; sf.Parent=Content
+    local lay=Instance.new("UIListLayout"); lay.SortOrder=Enum.SortOrder.LayoutOrder; lay.Padding=UDim.new(0,5); lay.Parent=sf
+    local pad=Instance.new("UIPadding"); pad.PaddingLeft=UDim.new(0,16); pad.PaddingRight=UDim.new(0,16)
+    pad.PaddingTop=UDim.new(0,14); pad.PaddingBottom=UDim.new(0,14); pad.Parent=sf
+    return sf
+end
+
+local function makeSection(parent, title, order)
+    local w=Instance.new("Frame"); w.Size=UDim2.new(1,0,0,24); w.BackgroundTransparency=1; w.LayoutOrder=order; w.Parent=parent
+    local lbl=Instance.new("TextLabel"); lbl.Text=title; lbl.Font=Enum.Font.GothamBold; lbl.TextSize=9
+    lbl.TextColor3=Color3.fromRGB(74,74,96); lbl.BackgroundTransparency=1; lbl.Size=UDim2.new(0,110,1,0)
+    lbl.TextXAlignment=Enum.TextXAlignment.Left; lbl.Parent=w
+    local ln=Instance.new("Frame"); ln.Size=UDim2.new(1,-118,0,1); ln.Position=UDim2.new(0,118,0.5,0)
+    ln.BackgroundColor3=Color3.fromRGB(30,30,40); ln.BorderSizePixel=0; ln.Parent=w
+    return w
+end
+
+local function makeToggle(parent, name, desc, order, callback)
+    local row=Instance.new("Frame"); row.Size=UDim2.new(1,0,0,42); row.BackgroundColor3=Color3.fromRGB(17,17,21)
+    row.BorderSizePixel=0; row.LayoutOrder=order; row.Parent=parent
+    local rc=Instance.new("UICorner"); rc.CornerRadius=UDim.new(0,7); rc.Parent=row
+    local rs=Instance.new("UIStroke"); rs.Color=Color3.fromRGB(28,28,36); rs.Thickness=1; rs.Parent=row
+    local nl=Instance.new("TextLabel"); nl.Text=name; nl.Font=Enum.Font.Gotham; nl.TextSize=13
+    nl.TextColor3=Color3.fromRGB(200,200,216); nl.BackgroundTransparency=1
+    nl.Position=UDim2.new(0,13,0,6); nl.Size=UDim2.new(1,-60,0,16); nl.TextXAlignment=Enum.TextXAlignment.Left; nl.Parent=row
+    local dl=Instance.new("TextLabel"); dl.Text=desc; dl.Font=Enum.Font.Gotham; dl.TextSize=10
+    dl.TextColor3=Color3.fromRGB(62,62,80); dl.BackgroundTransparency=1
+    dl.Position=UDim2.new(0,13,0,23); dl.Size=UDim2.new(1,-60,0,14); dl.TextXAlignment=Enum.TextXAlignment.Left; dl.Parent=row
+    local trk=Instance.new("Frame"); trk.Size=UDim2.new(0,38,0,21); trk.Position=UDim2.new(1,-50,0.5,-10)
+    trk.BackgroundColor3=Color3.fromRGB(30,30,40); trk.BorderSizePixel=0; trk.Parent=row
+    local trkc=Instance.new("UICorner"); trkc.CornerRadius=UDim.new(1,0); trkc.Parent=trk
+    local trks=Instance.new("UIStroke"); trks.Color=Color3.fromRGB(42,42,56); trks.Thickness=1; trks.Parent=trk
+    local knob=Instance.new("Frame"); knob.Size=UDim2.new(0,13,0,13); knob.Position=UDim2.new(0,4,0.5,-6)
+    knob.BackgroundColor3=Color3.fromRGB(58,58,78); knob.BorderSizePixel=0; knob.Parent=trk
+    local kc=Instance.new("UICorner"); kc.CornerRadius=UDim.new(1,0); kc.Parent=knob
+    local enabled=false
+    local btn=Instance.new("TextButton"); btn.Size=UDim2.new(1,0,1,0); btn.BackgroundTransparency=1; btn.Text=""; btn.Parent=row
+    btn.MouseButton1Click:Connect(function()
+        enabled=not enabled
+        local ti=TweenInfo.new(0.18,Enum.EasingStyle.Quad)
+        if enabled then
+            TweenService:Create(trk,ti,{BackgroundColor3=Color3.fromRGB(61,47,143)}):Play()
+            TweenService:Create(knob,ti,{Position=UDim2.new(0,22,0.5,-6),BackgroundColor3=Color3.fromRGB(196,184,255)}):Play()
+            trks.Color=Color3.fromRGB(90,71,176)
+        else
+            TweenService:Create(trk,ti,{BackgroundColor3=Color3.fromRGB(30,30,40)}):Play()
+            TweenService:Create(knob,ti,{Position=UDim2.new(0,4,0.5,-6),BackgroundColor3=Color3.fromRGB(58,58,78)}):Play()
+            trks.Color=Color3.fromRGB(42,42,56)
+        end
+        if callback then callback(enabled) end
+    end)
+    btn.MouseEnter:Connect(function() TweenService:Create(row,TweenInfo.new(0.1),{BackgroundColor3=Color3.fromRGB(20,20,26)}):Play(); rs.Color=Color3.fromRGB(37,37,48) end)
+    btn.MouseLeave:Connect(function() TweenService:Create(row,TweenInfo.new(0.1),{BackgroundColor3=Color3.fromRGB(17,17,21)}):Play(); rs.Color=Color3.fromRGB(28,28,36) end)
+    return row
+end
+
+local function makeDropdown(parent, name, desc, options, order, callback)
+    local open=false; local selected=options[1]
+    local iH=30; local cH=42; local oH=cH+(#options*iH)+6
+    local row=Instance.new("Frame"); row.Size=UDim2.new(1,0,0,cH); row.BackgroundColor3=Color3.fromRGB(17,17,21)
+    row.BorderSizePixel=0; row.LayoutOrder=order; row.ClipsDescendants=true; row.Parent=parent
+    local rc=Instance.new("UICorner"); rc.CornerRadius=UDim.new(0,7); rc.Parent=row
+    local rs=Instance.new("UIStroke"); rs.Color=Color3.fromRGB(28,28,36); rs.Thickness=1; rs.Parent=row
+    local nl=Instance.new("TextLabel"); nl.Text=name; nl.Font=Enum.Font.Gotham; nl.TextSize=13
+    nl.TextColor3=Color3.fromRGB(200,200,216); nl.BackgroundTransparency=1
+    nl.Position=UDim2.new(0,13,0,6); nl.Size=UDim2.new(1,-80,0,16); nl.TextXAlignment=Enum.TextXAlignment.Left; nl.Parent=row
+    local dl=Instance.new("TextLabel"); dl.Text=desc; dl.Font=Enum.Font.Gotham; dl.TextSize=10
+    dl.TextColor3=Color3.fromRGB(62,62,80); dl.BackgroundTransparency=1
+    dl.Position=UDim2.new(0,13,0,23); dl.Size=UDim2.new(1,-80,0,14); dl.TextXAlignment=Enum.TextXAlignment.Left; dl.Parent=row
+    local pill=Instance.new("Frame"); pill.Size=UDim2.new(0,60,0,20); pill.Position=UDim2.new(1,-72,0.5,-10)
+    pill.BackgroundColor3=Color3.fromRGB(28,26,46); pill.BorderSizePixel=0; pill.Parent=row
+    local pc=Instance.new("UICorner"); pc.CornerRadius=UDim.new(0,5); pc.Parent=pill
+    local ps=Instance.new("UIStroke"); ps.Color=Color3.fromRGB(58,52,96); ps.Thickness=1; ps.Parent=pill
+    local sl=Instance.new("TextLabel"); sl.Text=selected; sl.Font=Enum.Font.Gotham; sl.TextSize=10
+    sl.TextColor3=Color3.fromRGB(184,176,255); sl.BackgroundTransparency=1; sl.Size=UDim2.new(1,-4,1,0)
+    sl.Position=UDim2.new(0,2,0,0); sl.TextXAlignment=Enum.TextXAlignment.Center; sl.TextTruncate=Enum.TextTruncate.AtEnd; sl.Parent=pill
+    local of=Instance.new("Frame"); of.Size=UDim2.new(1,-26,0,#options*iH); of.Position=UDim2.new(0,13,0,cH+4)
+    of.BackgroundColor3=Color3.fromRGB(14,14,18); of.BorderSizePixel=0; of.Parent=row
+    local ofc=Instance.new("UICorner"); ofc.CornerRadius=UDim.new(0,6); ofc.Parent=of
+    local ofs=Instance.new("UIStroke"); ofs.Color=Color3.fromRGB(30,30,44); ofs.Thickness=1; ofs.Parent=of
+    local ofl=Instance.new("UIListLayout"); ofl.SortOrder=Enum.SortOrder.LayoutOrder; ofl.Parent=of
+    for idx,optName in ipairs(options) do
+        local ob=Instance.new("TextButton"); ob.Size=UDim2.new(1,0,0,iH); ob.BackgroundTransparency=1
+        ob.Text=""; ob.LayoutOrder=idx; ob.Parent=of
+        local ol=Instance.new("TextLabel"); ol.Text=optName; ol.Font=Enum.Font.Gotham; ol.TextSize=12
+        ol.TextColor3=Color3.fromRGB(120,120,150); ol.BackgroundTransparency=1
+        ol.Position=UDim2.new(0,10,0,0); ol.Size=UDim2.new(1,-10,1,0); ol.TextXAlignment=Enum.TextXAlignment.Left; ol.Parent=ob
+        ob.MouseEnter:Connect(function() ol.TextColor3=Color3.fromRGB(184,176,255) end)
+        ob.MouseLeave:Connect(function() ol.TextColor3=(selected==optName) and Color3.fromRGB(184,176,255) or Color3.fromRGB(120,120,150) end)
+        ob.MouseButton1Click:Connect(function()
+            selected=optName; sl.Text=optName; open=false
+            TweenService:Create(row,TweenInfo.new(0.15,Enum.EasingStyle.Quad),{Size=UDim2.new(1,0,0,cH)}):Play()
+            if callback then callback(selected) end
+        end)
+    end
+    local hb=Instance.new("TextButton"); hb.Size=UDim2.new(1,0,0,cH); hb.BackgroundTransparency=1; hb.Text=""; hb.ZIndex=2; hb.Parent=row
+    hb.MouseButton1Click:Connect(function()
+        open=not open
+        TweenService:Create(row,TweenInfo.new(0.18,Enum.EasingStyle.Quad),{Size=UDim2.new(1,0,0,open and oH or cH)}):Play()
+    end)
+    return row
+end
+
+-- ============================================================
+-- TAB SYSTEM
+-- ============================================================
+local tabFrames={}; local tabButtons={}
+
+local function makeTabBtn(name, order)
+    local btn=Instance.new("TextButton"); btn.Size=UDim2.new(1,0,0,32); btn.BackgroundTransparency=1
+    btn.Text=""; btn.LayoutOrder=order; btn.Parent=SidebarList
+    local bg=Instance.new("Frame"); bg.Size=UDim2.new(1,0,1,0); bg.BackgroundTransparency=1; bg.BorderSizePixel=0; bg.Parent=btn
+    local bgc=Instance.new("UICorner"); bgc.CornerRadius=UDim.new(0,6); bgc.Parent=bg
+    local bgs=Instance.new("UIStroke"); bgs.Color=Color3.fromRGB(46,42,80); bgs.Thickness=1; bgs.Transparency=1; bgs.Parent=bg
+    local lbl=Instance.new("TextLabel"); lbl.Text=name; lbl.Font=Enum.Font.Gotham; lbl.TextSize=12
+    lbl.TextColor3=Color3.fromRGB(86,86,104); lbl.BackgroundTransparency=1
+    lbl.Position=UDim2.new(0,10,0,0); lbl.Size=UDim2.new(1,-10,1,0); lbl.TextXAlignment=Enum.TextXAlignment.Left; lbl.Parent=btn
+    return btn,bg,bgs,lbl
+end
+
+local function switchTab(targetName)
+    for n,frame in pairs(tabFrames) do frame.Visible=(n==targetName) end
+    for n,data in pairs(tabButtons) do
+        local active=(n==targetName)
+        data.bg.BackgroundTransparency=active and 0 or 1
+        data.bg.BackgroundColor3=Color3.fromRGB(28,26,46)
+        data.stroke.Transparency=active and 0 or 1
+        data.label.TextColor3=active and Color3.fromRGB(184,176,255) or Color3.fromRGB(86,86,104)
+    end
+end
+
+for i,tabName in ipairs({"Main","Player","Util","Misc","Settings"}) do
+    local frame=makeScrollFrame(); tabFrames[tabName]=frame
+    local btn,bg,stroke,lbl=makeTabBtn(tabName,i)
+    tabButtons[tabName]={bg=bg,stroke=stroke,label=lbl}
+    btn.MouseButton1Click:Connect(function() switchTab(tabName) end)
+    btn.MouseEnter:Connect(function()
+        if tabFrames[tabName].Visible then return end
+        bg.BackgroundTransparency=0.6; bg.BackgroundColor3=Color3.fromRGB(23,23,30); lbl.TextColor3=Color3.fromRGB(144,144,170)
+    end)
+    btn.MouseLeave:Connect(function()
+        if tabFrames[tabName].Visible then return end
+        bg.BackgroundTransparency=1; lbl.TextColor3=Color3.fromRGB(86,86,104)
+    end)
+end
+
+-- ============================================================
+-- POPULATE TABS
+-- ============================================================
+
+-- MAIN — example toggle + example dropdown only
+local mainFrame=tabFrames["Main"]
+makeSection(mainFrame, T.example_section, 1)
+makeToggle(mainFrame, T.example, T.example_d, 2, function(v)
+    -- stub: add your logic here
+end)
+makeDropdown(mainFrame, T.example_dd, T.example_dd_d, {
+    "Option 1","Option 2","Option 3","Option 4"
+}, 3, function(val)
+    print("Dropdown:", val)
+end)
+
+-- PLAYER — anti-afk only
+local playerFrame=tabFrames["Player"]
+makeSection(playerFrame, T.utility_section, 1)
+makeToggle(playerFrame, T.anti_afk, T.anti_afk_d, 2, function(v)
+    if v then
+        local VU = game:GetService("VirtualUser")
+        lp.Idled:Connect(function()
+            VU:Button2Down(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+            task.wait(1)
+            VU:Button2Up(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+        end)
+    end
+end)
+
+-- UTIL — fullbright only
+local utilFrame=tabFrames["Util"]
+makeSection(utilFrame, T.world_section, 1)
+makeToggle(utilFrame, T.fullbright, T.fullbright_d, 2, function(v)
+    if v then
+        Lighting.Brightness=10; Lighting.ClockTime=14; Lighting.FogEnd=100000
+        Lighting.GlobalShadows=false; Lighting.Ambient=Color3.fromRGB(178,178,178); Lighting.OutdoorAmbient=Color3.fromRGB(178,178,178)
+    else
+        Lighting.Brightness=1; Lighting.ClockTime=8; Lighting.FogEnd=100000
+        Lighting.GlobalShadows=true; Lighting.Ambient=Color3.fromRGB(70,70,70); Lighting.OutdoorAmbient=Color3.fromRGB(70,70,70)
+    end
+end)
+
+-- MISC — "show others using script" only
+-- HOW IT WORKS:
+--   When you execute this script, stampCharacter() (top of file) sets
+--   char:SetAttribute("MeowHubUser","v2.4") on YOUR character.
+--   When the toggle is ON, we scan every player's character every second.
+--   If their character has that attribute we place the BillboardGui above
+--   their head.  No attribute = not running MeowHub = no tag.
+local miscFrame=tabFrames["Misc"]
+makeSection(miscFrame, T.social_section, 1)
+
+local showUsersEnabled=false
+local tagConns={}
+local taggedChars={}   -- [character] = BillboardGui
+
+local function placeCatTag(char)
+    if taggedChars[char] then return end
+    local head=char:FindFirstChild("Head")
+    if not head then return end
+    if head:FindFirstChild(MEOW_TAG_NAME) then return end
+    local bb=Instance.new("BillboardGui")
+    bb.Name=MEOW_TAG_NAME; bb.Size=UDim2.new(0,60,0,60); bb.StudsOffset=Vector3.new(0,3.5,0)
+    bb.AlwaysOnTop=true; bb.Adornee=head; bb.Parent=head
+    local img=Instance.new("ImageLabel"); img.Size=UDim2.new(1,0,1,0); img.BackgroundTransparency=1
+    img.Image=MEOW_IMAGE_ID; img.ScaleType=Enum.ScaleType.Fit; img.Parent=bb
+    taggedChars[char]=bb
+end
+
+local function removeCatTag(char)
+    if taggedChars[char] then taggedChars[char]:Destroy(); taggedChars[char]=nil end
+    local head=char:FindFirstChild("Head")
+    if head then local t=head:FindFirstChild(MEOW_TAG_NAME); if t then t:Destroy() end end
+end
+
+local function isMeowUser(char)
+    return char:GetAttribute(MEOW_ATTR_KEY)==MEOW_ATTR_VAL
+end
+
+local function scanPlayers()
+    for _,p in ipairs(Players:GetPlayers()) do
+        if p~=lp then  -- don't double-tag ourselves
+            local char=p.Character
+            if char and isMeowUser(char) then
+                placeCatTag(char)
+            elseif char and taggedChars[char] then
+                removeCatTag(char)
+            end
+        end
+    end
+end
+
+makeToggle(miscFrame, T.show_users, T.show_users_d, 2, function(v)
+    showUsersEnabled=v
+    if v then
+        -- Immediate scan
+        scanPlayers()
+        -- Periodic re-scan (catches late attribute set + new spawns)
+        local loopConn=RunService.Heartbeat:Connect(function()
+            if not showUsersEnabled then return end
+            scanPlayers()
+        end)
+        table.insert(tagConns, loopConn)
+        -- Watch new players
+        local joinConn=Players.PlayerAdded:Connect(function(p)
+            p.CharacterAdded:Connect(function(char)
+                task.wait(1)   -- give their script time to stamp the attribute
+                if showUsersEnabled and isMeowUser(char) then
+                    placeCatTag(char)
+                end
+            end)
+        end)
+        table.insert(tagConns, joinConn)
+    else
+        for _,c in ipairs(tagConns) do c:Disconnect() end
+        tagConns={}
+        -- Remove all tags
+        for _,p in ipairs(Players:GetPlayers()) do
+            if p.Character then removeCatTag(p.Character) end
+        end
+        taggedChars={}
+    end
+end)
+
+-- SETTINGS — untouched from original
+local settingsFrame=tabFrames["Settings"]
+makeSection(settingsFrame, T.gui_keybind, 1)
+
+local keybindCard=Instance.new("Frame"); keybindCard.Size=UDim2.new(1,0,0,90)
+keybindCard.BackgroundColor3=Color3.fromRGB(17,17,21); keybindCard.BorderSizePixel=0
+keybindCard.LayoutOrder=2; keybindCard.Parent=settingsFrame
+local kcc=Instance.new("UICorner"); kcc.CornerRadius=UDim.new(0,8); kcc.Parent=keybindCard
+local kcs=Instance.new("UIStroke"); kcs.Color=Color3.fromRGB(28,28,36); kcs.Thickness=1; kcs.Parent=keybindCard
+
+local kbDesc=Instance.new("TextLabel"); kbDesc.Text=T.keybind_desc
+kbDesc.Font=Enum.Font.Gotham; kbDesc.TextSize=11; kbDesc.TextColor3=Color3.fromRGB(46,46,62)
+kbDesc.BackgroundTransparency=1; kbDesc.Position=UDim2.new(0,13,0,8)
+kbDesc.Size=UDim2.new(1,-26,0,30); kbDesc.TextXAlignment=Enum.TextXAlignment.Left
+kbDesc.TextWrapped=true; kbDesc.Parent=keybindCard
+
+local keyDisplay=Instance.new("Frame"); keyDisplay.Size=UDim2.new(0,80,0,26)
+keyDisplay.Position=UDim2.new(0,13,0,52); keyDisplay.BackgroundColor3=Color3.fromRGB(28,26,46)
+keyDisplay.BorderSizePixel=0; keyDisplay.Parent=keybindCard
+local kdc=Instance.new("UICorner"); kdc.CornerRadius=UDim.new(0,5); kdc.Parent=keyDisplay
+local keyDisplayStroke=Instance.new("UIStroke"); keyDisplayStroke.Color=Color3.fromRGB(58,52,96); keyDisplayStroke.Thickness=1; keyDisplayStroke.Parent=keyDisplay
+local keyDisplayLabel=Instance.new("TextLabel"); keyDisplayLabel.Text="RightShift"
+keyDisplayLabel.Font=Enum.Font.Code; keyDisplayLabel.TextSize=11; keyDisplayLabel.TextColor3=Color3.fromRGB(184,176,255)
+keyDisplayLabel.BackgroundTransparency=1; keyDisplayLabel.Size=UDim2.new(1,0,1,0)
+keyDisplayLabel.TextXAlignment=Enum.TextXAlignment.Center; keyDisplayLabel.Parent=keyDisplay
+
+local changeKeyBtn=Instance.new("TextButton"); changeKeyBtn.Size=UDim2.new(0,90,0,26)
+changeKeyBtn.Position=UDim2.new(0,100,0,52); changeKeyBtn.BackgroundColor3=Color3.fromRGB(28,26,46)
+changeKeyBtn.BorderSizePixel=0; changeKeyBtn.Text=T.change_key; changeKeyBtn.Font=Enum.Font.Gotham
+changeKeyBtn.TextSize=11; changeKeyBtn.TextColor3=Color3.fromRGB(136,128,200); changeKeyBtn.Parent=keybindCard
+local ckc=Instance.new("UICorner"); ckc.CornerRadius=UDim.new(0,5); ckc.Parent=changeKeyBtn
+local cks=Instance.new("UIStroke"); cks.Color=Color3.fromRGB(46,42,80); cks.Thickness=1; cks.Parent=changeKeyBtn
+
+changeKeyBtn.MouseButton1Click:Connect(function()
+    listeningForKey=true; keyDisplayLabel.Text="..."
+    keyDisplayLabel.TextColor3=Color3.fromRGB(251,191,36); keyDisplayStroke.Color=Color3.fromRGB(107,79,16)
+end)
+
+makeSection(settingsFrame, T.interface, 3)
+makeToggle(settingsFrame, T.toast_notif, T.toast_notif_d, 4, function(v) end)
+makeToggle(settingsFrame, T.remember_state, T.remember_state_d, 5, function(v) end)
+
+-- Key handler
+UserInputService.InputBegan:Connect(function(input, gpe)
+    if gpe then return end
+    if listeningForKey then
+        if input.UserInputType==Enum.UserInputType.Keyboard then
+            toggleKey=input.KeyCode; listeningForKey=false
+            keyDisplayLabel.Text=tostring(input.KeyCode):gsub("Enum.KeyCode.","")
+            keyDisplayLabel.TextColor3=Color3.fromRGB(184,176,255); keyDisplayStroke.Color=Color3.fromRGB(58,52,96)
+        end
+        return
+    end
+    if input.KeyCode==toggleKey then guiVisible=not guiVisible; Main.Visible=guiVisible end
+end)
+
+switchTab("Main")
+end -- end buildMainHub
