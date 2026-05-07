@@ -7,6 +7,8 @@ local TweenService   = game:GetService("TweenService")
 local RunService     = game:GetService("RunService")
 local CoreGui        = game:GetService("CoreGui")
 local Lighting       = game:GetService("Lighting")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local VirtualInputManager = game:GetService("VirtualInputManager")
 
 local lp       = Players.LocalPlayer
 local userId   = lp.UserId
@@ -136,6 +138,7 @@ local STRINGS = {
         utility_section = "UTILIDAD",
         world_section   = "MUNDO",
         social_section  = "SOCIAL",
+
     },
     fr = {
         select_lang    = "Veuillez sélectionner votre langue",
@@ -157,6 +160,7 @@ local STRINGS = {
         utility_section = "UTILITAIRE",
         world_section   = "MONDE",
         social_section  = "SOCIAL",
+
     },
     de = {
         select_lang    = "Bitte wähle deine Sprache",
@@ -178,6 +182,7 @@ local STRINGS = {
         utility_section = "DIENSTPROGRAMM",
         world_section   = "WELT",
         social_section  = "SOZIAL",
+
     },
     ja = {
         select_lang    = "言語を選択してください",
@@ -199,6 +204,7 @@ local STRINGS = {
         utility_section = "ユーティリティ",
         world_section   = "ワールド",
         social_section  = "ソーシャル",
+
     },
     zh = {
         select_lang    = "请选择您的语言",
@@ -220,6 +226,7 @@ local STRINGS = {
         utility_section = "工具",
         world_section   = "世界",
         social_section  = "社交",
+
     },
     ko = {
         select_lang    = "언어를 선택하세요",
@@ -241,6 +248,7 @@ local STRINGS = {
         utility_section = "유틸리티",
         world_section   = "월드",
         social_section  = "소셜",
+
     },
     pt = {
         select_lang    = "Por favor selecione seu idioma",
@@ -262,6 +270,7 @@ local STRINGS = {
         utility_section = "UTILIDADE",
         world_section   = "MUNDO",
         social_section  = "SOCIAL",
+
     },
     hi = {
         select_lang    = "कृपया अपनी भाषा चुनें",
@@ -283,6 +292,7 @@ local STRINGS = {
         utility_section = "उपयोगिता",
         world_section   = "दुनिया",
         social_section  = "सामाजिक",
+
     },
     vi = {
         select_lang    = "Vui lòng chọn ngôn ngữ của bạn",
@@ -304,6 +314,7 @@ local STRINGS = {
         utility_section = "TIỆN ÍCH",
         world_section   = "THẾ GIỚI",
         social_section  = "XÃ HỘI",
+
     },
     ru = {
         select_lang    = "Пожалуйста, выберите язык",
@@ -325,6 +336,7 @@ local STRINGS = {
         utility_section = "УТИЛИТА",
         world_section   = "МИР",
         social_section  = "СОЦИАЛЬНОЕ",
+
     },
     -- NEW LANGUAGES ↓
     ar = {
@@ -347,6 +359,7 @@ local STRINGS = {
         utility_section = "أداة",
         world_section   = "العالم",
         social_section  = "اجتماعي",
+
     },
     tr = {
         select_lang    = "Lütfen dilinizi seçin",
@@ -368,6 +381,7 @@ local STRINGS = {
         utility_section = "ARAÇ",
         world_section   = "DÜNYA",
         social_section  = "SOSYAL",
+
     },
     nl = {
         select_lang    = "Selecteer uw taal",
@@ -389,6 +403,7 @@ local STRINGS = {
         utility_section = "HULPMIDDEL",
         world_section   = "WERELD",
         social_section  = "SOCIAAL",
+
     },
     pl = {
         select_lang    = "Proszę wybrać język",
@@ -410,6 +425,7 @@ local STRINGS = {
         utility_section = "NARZĘDZIE",
         world_section   = "ŚWIAT",
         social_section  = "SPOŁECZNY",
+
     },
     th = {
         select_lang    = "กรุณาเลือกภาษาของคุณ",
@@ -431,6 +447,7 @@ local STRINGS = {
         utility_section = "ยูทิลิตี้",
         world_section   = "โลก",
         social_section  = "สังคม",
+
     },
     id = {
         select_lang    = "Silakan pilih bahasa Anda",
@@ -452,6 +469,7 @@ local STRINGS = {
         utility_section = "UTILITAS",
         world_section   = "DUNIA",
         social_section  = "SOSIAL",
+
     },
     uk = {
         select_lang    = "Будь ласка, оберіть мову",
@@ -473,6 +491,7 @@ local STRINGS = {
         utility_section = "УТИЛІТА",
         world_section   = "СВІТ",
         social_section  = "СОЦІАЛЬНЕ",
+
     },
     it = {
         select_lang    = "Seleziona la tua lingua",
@@ -494,6 +513,7 @@ local STRINGS = {
         utility_section = "UTILITÀ",
         world_section   = "MONDO",
         social_section  = "SOCIALE",
+
     },
 }
 
@@ -1021,18 +1041,19 @@ end
 -- POPULATE TABS
 -- ============================================================
 
--- MAIN — example toggle + example dropdown only
-local mainFrame=tabFrames["Main"]
+-- MAIN — Example only
+local mainFrame = tabFrames["Main"]
 makeSection(mainFrame, T.example_section, 1)
 makeToggle(mainFrame, T.example, T.example_d, 2, function(v)
-    -- stub: add your logic here
+    -- add your logic here
+    print("Example toggle:", v)
 end)
-makeDropdown(mainFrame, T.example_dd, T.example_dd_d, {
-    "Option 1","Option 2","Option 3","Option 4"
-}, 3, function(val)
-    print("Dropdown:", val)
-end)
-
+makeDropdown(mainFrame, T.example_dd, T.example_dd_d,
+    {"Option 1","Option 2","Option 3","Option 4"}, 3,
+    function(selected)
+        -- add your logic here
+        print("Dropdown selected:", selected)
+    end)
 -- PLAYER — anti-afk only
 local playerFrame=tabFrames["Player"]
 makeSection(playerFrame, T.utility_section, 1)
@@ -1047,7 +1068,7 @@ makeToggle(playerFrame, T.anti_afk, T.anti_afk_d, 2, function(v)
     end
 end)
 
--- UTIL — fullbright only
+-- UTIL — fullbright + auto dismantle selection
 local utilFrame=tabFrames["Util"]
 makeSection(utilFrame, T.world_section, 1)
 makeToggle(utilFrame, T.fullbright, T.fullbright_d, 2, function(v)
