@@ -908,6 +908,10 @@ local function makeSection(parent, title, order)
     return w
 end
 
+-- ── Config / Toggle Registry ─────────────────────────────────
+local TOGGLE_REGISTRY = {}
+local _toggleCounter   = 0
+
 local function makeToggle(parent, name, desc, order, callback)
     local row=Instance.new("Frame"); row.Size=UDim2.new(1,0,0,42); row.BackgroundColor3=Color3.fromRGB(17,17,21)
     row.BorderSizePixel=0; row.LayoutOrder=order; row.Parent=parent
@@ -944,6 +948,28 @@ local function makeToggle(parent, name, desc, order, callback)
     end)
     btn.MouseEnter:Connect(function() TweenService:Create(row,TweenInfo.new(0.1),{BackgroundColor3=Color3.fromRGB(20,20,26)}):Play(); rs.Color=Color3.fromRGB(37,37,48) end)
     btn.MouseLeave:Connect(function() TweenService:Create(row,TweenInfo.new(0.1),{BackgroundColor3=Color3.fromRGB(17,17,21)}):Play(); rs.Color=Color3.fromRGB(28,28,36) end)
+    -- register in config registry
+    _toggleCounter = _toggleCounter + 1
+    local _tid = _toggleCounter
+    TOGGLE_REGISTRY[_tid] = {
+        name     = name,
+        getState = function() return enabled end,
+        setState = function(v)
+            if v == enabled then return end
+            enabled = v
+            local ti = TweenInfo.new(0.18, Enum.EasingStyle.Quad)
+            if enabled then
+                TweenService:Create(trk,ti,{BackgroundColor3=Color3.fromRGB(61,47,143)}):Play()
+                TweenService:Create(knob,ti,{Position=UDim2.new(0,22,0.5,-6),BackgroundColor3=Color3.fromRGB(196,184,255)}):Play()
+                trks.Color=Color3.fromRGB(90,71,176)
+            else
+                TweenService:Create(trk,ti,{BackgroundColor3=Color3.fromRGB(30,30,40)}):Play()
+                TweenService:Create(knob,ti,{Position=UDim2.new(0,4,0.5,-6),BackgroundColor3=Color3.fromRGB(58,58,78)}):Play()
+                trks.Color=Color3.fromRGB(42,42,56)
+            end
+            if callback then callback(enabled) end
+        end,
+    }
     return row
 end
 
@@ -1204,6 +1230,296 @@ end)
 makeSection(settingsFrame, T.interface, 3)
 makeToggle(settingsFrame, T.toast_notif, T.toast_notif_d, 4, function(v) end)
 makeToggle(settingsFrame, T.remember_state, T.remember_state_d, 5, function(v) end)
+
+-- ============================================================
+-- CONFIG SYSTEM
+-- ============================================================
+-- Storage: uses writefile/readfile if available, falls back to
+-- an in-memory table so it always works.
+local CONFIGS      = {}   -- { name = { [toggleId] = bool, ... } }
+local AUTO_LOAD    = nil  -- config name to auto-apply on execute
+local CFG_FILE     = "MeowHub_configs.json"
+local AUTO_FILE    = "MeowHub_autoload.txt"
+
+-- Serialise / deserialise helpers
+local function saveConfigs()
+    if not writefile then return end
+    local lines = {}
+    for cname, states in pairs(CONFIGS) do
+        local stateStr = ""
+        for id, v in pairs(states) do stateStr = stateStr .. tostring(id) .. "=" .. (v and "1" or "0") .. "," end
+        table.insert(lines, cname .. "|" .. stateStr)
+    end
+    pcall(writefile, CFG_FILE, table.concat(lines, "\n"))
+end
+
+local function loadConfigs()
+    if not readfile then return end
+    local ok, raw = pcall(readfile, CFG_FILE)
+    if not ok or not raw or raw == "" then return end
+    for line in raw:gmatch("[^\n]+") do
+        local cname, stateStr = line:match("^(.+)|(.*)$")
+        if cname then
+            CONFIGS[cname] = {}
+            for idStr, vStr in stateStr:gmatch("(%d+)=([01]),") do
+                CONFIGS[cname][tonumber(idStr)] = (vStr == "1")
+            end
+        end
+    end
+end
+
+local function saveAutoLoad()
+    if not writefile then return end
+    pcall(writefile, AUTO_FILE, AUTO_LOAD or "")
+end
+
+local function loadAutoLoad()
+    if not readfile then return end
+    local ok, raw = pcall(readfile, AUTO_FILE)
+    if ok and raw and raw ~= "" then AUTO_LOAD = raw end
+end
+
+-- Snapshot current toggle states into a config
+local function snapshotConfig(cname)
+    local snap = {}
+    for id, reg in pairs(TOGGLE_REGISTRY) do
+        snap[id] = reg.getState()
+    end
+    CONFIGS[cname] = snap
+    saveConfigs()
+end
+
+-- Apply a config (restore toggle states)
+local function applyConfig(cname)
+    local snap = CONFIGS[cname]
+    if not snap then return end
+    for id, reg in pairs(TOGGLE_REGISTRY) do
+        if snap[id] ~= nil then
+            reg.setState(snap[id])
+        end
+    end
+end
+
+-- Load persisted data on startup
+loadConfigs()
+loadAutoLoad()
+
+-- ── CONFIG SECTION UI ────────────────────────────────────────
+makeSection(settingsFrame, "CONFIG MANAGER", 6)
+
+-- ── Name input row ───────────────────────────────────────────
+local nameRow = Instance.new("Frame")
+nameRow.Size = UDim2.new(1,0,0,42)
+nameRow.BackgroundColor3 = Color3.fromRGB(17,17,21)
+nameRow.BorderSizePixel = 0; nameRow.LayoutOrder = 7; nameRow.Parent = settingsFrame
+local _nrc = Instance.new("UICorner"); _nrc.CornerRadius = UDim.new(0,7); _nrc.Parent = nameRow
+local _nrs = Instance.new("UIStroke"); _nrs.Color = Color3.fromRGB(28,28,36); _nrs.Thickness = 1; _nrs.Parent = nameRow
+
+local cfgNameBox = Instance.new("TextBox")
+cfgNameBox.Size = UDim2.new(1,-108,0,26); cfgNameBox.Position = UDim2.new(0,10,0.5,-13)
+cfgNameBox.BackgroundColor3 = Color3.fromRGB(12,12,18)
+cfgNameBox.BorderSizePixel = 0; cfgNameBox.Font = Enum.Font.Gotham; cfgNameBox.TextSize = 12
+cfgNameBox.TextColor3 = Color3.fromRGB(200,200,216); cfgNameBox.PlaceholderText = "Config name..."
+cfgNameBox.PlaceholderColor3 = Color3.fromRGB(60,60,80); cfgNameBox.Text = ""
+cfgNameBox.ClearTextOnFocus = false; cfgNameBox.Parent = nameRow
+local _nbc = Instance.new("UICorner"); _nbc.CornerRadius = UDim.new(0,5); _nbc.Parent = cfgNameBox
+local _nbs = Instance.new("UIStroke"); _nbs.Color = Color3.fromRGB(38,35,60); _nbs.Thickness = 1; _nbs.Parent = cfgNameBox
+
+local createBtn = Instance.new("TextButton")
+createBtn.Size = UDim2.new(0,84,0,26); createBtn.Position = UDim2.new(1,-94,0.5,-13)
+createBtn.BackgroundColor3 = Color3.fromRGB(44,34,100)
+createBtn.BorderSizePixel = 0; createBtn.Text = "Create"
+createBtn.Font = Enum.Font.GothamBold; createBtn.TextSize = 11
+createBtn.TextColor3 = Color3.fromRGB(196,180,255); createBtn.AutoButtonColor = false
+createBtn.Parent = nameRow
+local _cbc = Instance.new("UICorner"); _cbc.CornerRadius = UDim.new(0,5); _cbc.Parent = createBtn
+local _cbs = Instance.new("UIStroke"); _cbs.Color = Color3.fromRGB(90,70,200); _cbs.Thickness = 1; _cbs.Parent = createBtn
+
+createBtn.MouseEnter:Connect(function() TweenService:Create(createBtn,TweenInfo.new(0.1),{BackgroundColor3=Color3.fromRGB(58,46,130)}):Play() end)
+createBtn.MouseLeave:Connect(function() TweenService:Create(createBtn,TweenInfo.new(0.1),{BackgroundColor3=Color3.fromRGB(44,34,100)}):Play() end)
+
+-- ── Select config dropdown (built dynamically) ───────────────
+-- We store the dropdown row reference so we can rebuild it
+local cfgDropContainer = Instance.new("Frame")
+cfgDropContainer.Size = UDim2.new(1,0,0,0)   -- height grows when dropdown is built
+cfgDropContainer.BackgroundTransparency = 1
+cfgDropContainer.BorderSizePixel = 0; cfgDropContainer.LayoutOrder = 8; cfgDropContainer.Parent = settingsFrame
+local cfgDropLayout = Instance.new("UIListLayout"); cfgDropLayout.Parent = cfgDropContainer
+cfgDropLayout.SortOrder = Enum.SortOrder.LayoutOrder; cfgDropLayout.Padding = UDim.new(0,5)
+
+local currentCfgRow    = nil   -- the active dropdown row instance
+local selectedCfgName  = nil   -- currently selected config name
+
+-- ── Action buttons row (Save / Set Auto Load / Delete) ───────
+local actionRow = Instance.new("Frame")
+actionRow.Size = UDim2.new(1,0,0,32)
+actionRow.BackgroundTransparency = 1; actionRow.BorderSizePixel = 0
+actionRow.LayoutOrder = 9; actionRow.Visible = false; actionRow.Parent = settingsFrame
+local actionLayout = Instance.new("UIListLayout"); actionLayout.FillDirection = Enum.FillDirection.Horizontal
+actionLayout.Padding = UDim.new(0,6); actionLayout.SortOrder = Enum.SortOrder.LayoutOrder; actionLayout.Parent = actionRow
+
+local function makeActionBtn(label, col, order)
+    local b = Instance.new("TextButton")
+    b.Size = UDim2.new(0,118,1,0); b.BackgroundColor3 = col
+    b.BorderSizePixel = 0; b.Text = label; b.Font = Enum.Font.GothamBold; b.TextSize = 11
+    b.TextColor3 = Color3.fromRGB(220,210,255); b.AutoButtonColor = false
+    b.LayoutOrder = order; b.Parent = actionRow
+    local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0,5); c.Parent = b
+    local s = Instance.new("UIStroke"); s.Color = Color3.fromRGB(90,70,200); s.Thickness = 1; s.Parent = b
+    local hi = Color3.fromRGB(col.R*255+14, col.G*255+10, col.B*255+30)  -- won't be used directly
+    b.MouseEnter:Connect(function() b.BackgroundTransparency = 0.25 end)
+    b.MouseLeave:Connect(function() b.BackgroundTransparency = 0 end)
+    return b
+end
+
+local saveBtn     = makeActionBtn("Save State",    Color3.fromRGB(36,28,84),  1)
+local autoLoadBtn = makeActionBtn("Set Auto Load", Color3.fromRGB(28,50,36),  2)
+local deleteBtn   = makeActionBtn("Delete",        Color3.fromRGB(60,20,20),  3)
+
+-- Auto load indicator label
+local autoLabel = Instance.new("TextLabel")
+autoLabel.Size = UDim2.new(1,0,0,14); autoLabel.BackgroundTransparency = 1
+autoLabel.Font = Enum.Font.Code; autoLabel.TextSize = 10
+autoLabel.TextColor3 = Color3.fromRGB(80,160,100)
+autoLabel.TextXAlignment = Enum.TextXAlignment.Left
+autoLabel.LayoutOrder = 10; autoLabel.Parent = settingsFrame
+autoLabel.Text = AUTO_LOAD and ("auto load: " .. AUTO_LOAD) or ""
+
+-- ── Build / Rebuild the config select dropdown ────────────────
+local function rebuildDropdown()
+    -- destroy old row
+    if currentCfgRow then currentCfgRow:Destroy(); currentCfgRow = nil end
+
+    local names = {}
+    for k in pairs(CONFIGS) do table.insert(names, k) end
+    table.sort(names)
+
+    if #names == 0 then
+        cfgDropContainer.Size = UDim2.new(1,0,0,0)
+        actionRow.Visible = false
+        return
+    end
+
+    -- build a custom dropdown row matching the hub's style
+    local iH=30; local cH=42; local oH=cH+(#names*iH)+6
+    local open=false
+
+    local row=Instance.new("Frame"); row.Size=UDim2.new(1,0,0,cH)
+    row.BackgroundColor3=Color3.fromRGB(17,17,21); row.BorderSizePixel=0
+    row.LayoutOrder=1; row.ClipsDescendants=true; row.Parent=cfgDropContainer
+    Instance.new("UICorner",row).CornerRadius=UDim.new(0,7)
+    local rs=Instance.new("UIStroke",row); rs.Color=Color3.fromRGB(28,28,36); rs.Thickness=1
+
+    local nl=Instance.new("TextLabel",row); nl.Text="Select Config"; nl.Font=Enum.Font.Gotham; nl.TextSize=13
+    nl.TextColor3=Color3.fromRGB(200,200,216); nl.BackgroundTransparency=1
+    nl.Position=UDim2.new(0,13,0,6); nl.Size=UDim2.new(1,-80,0,16); nl.TextXAlignment=Enum.TextXAlignment.Left
+
+    local dl=Instance.new("TextLabel",row); dl.Text="choose a saved config"; dl.Font=Enum.Font.Gotham; dl.TextSize=10
+    dl.TextColor3=Color3.fromRGB(62,62,80); dl.BackgroundTransparency=1
+    dl.Position=UDim2.new(0,13,0,23); dl.Size=UDim2.new(1,-80,0,14); dl.TextXAlignment=Enum.TextXAlignment.Left
+
+    local pill=Instance.new("Frame",row); pill.Size=UDim2.new(0,70,0,20); pill.Position=UDim2.new(1,-82,0.5,-10)
+    pill.BackgroundColor3=Color3.fromRGB(28,26,46); pill.BorderSizePixel=0
+    Instance.new("UICorner",pill).CornerRadius=UDim.new(0,5)
+    Instance.new("UIStroke",pill).Color=Color3.fromRGB(58,52,96)
+    local sl=Instance.new("TextLabel",pill); sl.Text=selectedCfgName or "none"
+    sl.Font=Enum.Font.Gotham; sl.TextSize=10; sl.TextColor3=Color3.fromRGB(184,176,255)
+    sl.BackgroundTransparency=1; sl.Size=UDim2.new(1,-4,1,0); sl.Position=UDim2.new(0,2,0,0)
+    sl.TextXAlignment=Enum.TextXAlignment.Center; sl.TextTruncate=Enum.TextTruncate.AtEnd
+
+    local of=Instance.new("Frame",row); of.Size=UDim2.new(1,-26,0,#names*iH); of.Position=UDim2.new(0,13,0,cH+4)
+    of.BackgroundColor3=Color3.fromRGB(14,14,18); of.BorderSizePixel=0
+    Instance.new("UICorner",of).CornerRadius=UDim.new(0,6)
+    Instance.new("UIStroke",of).Color=Color3.fromRGB(30,30,44)
+    local ofl=Instance.new("UIListLayout",of); ofl.SortOrder=Enum.SortOrder.LayoutOrder
+
+    for idx,cname in ipairs(names) do
+        local ob=Instance.new("TextButton",of); ob.Size=UDim2.new(1,0,0,iH)
+        ob.BackgroundTransparency=1; ob.Text=""; ob.LayoutOrder=idx
+        local ol=Instance.new("TextLabel",ob); ol.Text=cname; ol.Font=Enum.Font.Gotham; ol.TextSize=12
+        ol.TextColor3=Color3.fromRGB(120,120,150); ol.BackgroundTransparency=1
+        ol.Position=UDim2.new(0,10,0,0); ol.Size=UDim2.new(1,-10,1,0); ol.TextXAlignment=Enum.TextXAlignment.Left
+        -- auto-load indicator star
+        if AUTO_LOAD == cname then
+            ol.Text = cname .. "  ★"
+            ol.TextColor3 = Color3.fromRGB(80,200,110)
+        end
+        ob.MouseEnter:Connect(function() ol.TextColor3=Color3.fromRGB(184,176,255) end)
+        ob.MouseLeave:Connect(function()
+            ol.TextColor3 = (selectedCfgName==cname) and Color3.fromRGB(184,176,255) or
+                            (AUTO_LOAD==cname) and Color3.fromRGB(80,200,110) or Color3.fromRGB(120,120,150)
+        end)
+        ob.MouseButton1Click:Connect(function()
+            selectedCfgName = cname; sl.Text = cname; open=false
+            TweenService:Create(row,TweenInfo.new(0.15,Enum.EasingStyle.Quad),{Size=UDim2.new(1,0,0,cH)}):Play()
+            actionRow.Visible = true
+            -- apply config immediately on select
+            applyConfig(cname)
+        end)
+    end
+
+    local hb=Instance.new("TextButton",row); hb.Size=UDim2.new(1,0,0,cH)
+    hb.BackgroundTransparency=1; hb.Text=""; hb.ZIndex=2
+    hb.MouseButton1Click:Connect(function()
+        open=not open
+        TweenService:Create(row,TweenInfo.new(0.18,Enum.EasingStyle.Quad),{Size=UDim2.new(1,0,0,open and oH or cH)}):Play()
+    end)
+
+    currentCfgRow = row
+    cfgDropContainer.Size = UDim2.new(1,0,0,cH)
+end
+
+-- ── Button logic ─────────────────────────────────────────────
+-- Create button: save a snapshot under the typed name
+createBtn.MouseButton1Click:Connect(function()
+    local nm = cfgNameBox.Text:match("^%s*(.-)%s*$")
+    if nm == "" then return end
+    snapshotConfig(nm)
+    selectedCfgName = nm
+    cfgNameBox.Text = ""
+    rebuildDropdown()
+    actionRow.Visible = true
+end)
+
+-- Save State: overwrite selected config with current toggle states
+saveBtn.MouseButton1Click:Connect(function()
+    if not selectedCfgName then return end
+    snapshotConfig(selectedCfgName)
+end)
+
+-- Set Auto Load: mark selected config to auto-apply on next execute
+autoLoadBtn.MouseButton1Click:Connect(function()
+    if not selectedCfgName then return end
+    if AUTO_LOAD == selectedCfgName then
+        -- toggle off
+        AUTO_LOAD = nil
+        autoLabel.Text = ""
+    else
+        AUTO_LOAD = selectedCfgName
+        autoLabel.Text = "auto load: " .. AUTO_LOAD
+    end
+    saveAutoLoad()
+    rebuildDropdown()   -- refresh star indicators
+end)
+
+-- Delete: remove selected config
+deleteBtn.MouseButton1Click:Connect(function()
+    if not selectedCfgName then return end
+    CONFIGS[selectedCfgName] = nil
+    if AUTO_LOAD == selectedCfgName then AUTO_LOAD = nil; autoLabel.Text = ""; saveAutoLoad() end
+    saveConfigs()
+    selectedCfgName = nil
+    actionRow.Visible = false
+    rebuildDropdown()
+end)
+
+-- ── Auto-apply on startup ─────────────────────────────────────
+if AUTO_LOAD and CONFIGS[AUTO_LOAD] then
+    task.defer(function() applyConfig(AUTO_LOAD) end)
+end
+
+-- Build dropdown initially (shows configs from persisted file)
+rebuildDropdown()
 
 -- Key handler
 UserInputService.InputBegan:Connect(function(input, gpe)
